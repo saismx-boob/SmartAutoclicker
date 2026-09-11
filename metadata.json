@@ -1,0 +1,7 @@
+{
+  "name": "AutoClick AI",
+  "description": "Automatisation intelligente et auto-clicker avancé avec vision IA et détection d'écran",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
