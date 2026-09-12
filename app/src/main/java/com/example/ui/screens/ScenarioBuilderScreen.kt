@@ -739,33 +739,18 @@ fun ScenarioEditorView(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Quick Condition Block: adds a step with condition IF_IMAGE_PRESENT
+                        // Flow Control Block: Si [Condition Visuelle] Alors [Action] Sinon [Autre Action]
                         Button(
                             onClick = {
-                                // Add click step with IF_IMAGE_PRESENT condition
-                                onAddStep(ActionType.CLICK)
-                                val newIndex = steps.size
-                                onUpdateStep(
-                                    newIndex,
-                                    ActionStep(
-                                        stepNumber = newIndex + 1,
-                                        name = "Si Image Vue ➔ Clic",
-                                        actionType = ActionType.CLICK,
-                                        targetType = TargetType.IMAGE_MATCH,
-                                        conditionType = ConditionType.IF_IMAGE_PRESENT,
-                                        conditionParam = "ic_check",
-                                        targetImageTemplate = "ic_check",
-                                        targetImageName = "Bouton Valider (✓)"
-                                    )
-                                )
+                                onAddStep(ActionType.BRANCH_IF_ELSE)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF261E0E)),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.3f).testTag("add_condition_step")
+                            modifier = Modifier.weight(1.3f).testTag("add_branch_if_else_step")
                         ) {
                             Icon(Icons.Default.AltRoute, contentDescription = null, tint = CyberAmber, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("+ Condition Image", fontSize = 11.sp, color = CyberAmber, fontWeight = FontWeight.Bold)
+                            Text("+ Bloc Si/Alors/Sinon", fontSize = 11.sp, color = CyberAmber, fontWeight = FontWeight.Bold)
                         }
 
                         Button(

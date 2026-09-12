@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ColorLens
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TextFields
@@ -43,6 +45,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -69,13 +72,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ai.ScreenAnalysisResult
 import com.example.engine.DetectionResult
 import com.example.engine.ImageRecognitionEngine
+import com.example.model.ActionStep
 import com.example.model.DetectionZone
+import com.example.model.ScenarioEntity
 import com.example.ui.theme.CyberAmber
 import com.example.ui.theme.CyberBorder
 import com.example.ui.theme.CyberCyan
 import com.example.ui.theme.CyberEmerald
+import com.example.ui.theme.ElectricViolet
 import com.example.ui.theme.EmergencyCrimson
 import com.example.ui.theme.GunmetalCard
 import com.example.ui.theme.ObsidianBg
@@ -91,6 +98,10 @@ fun DetectionStudioScreen(
     isScreenCaptureRunning: Boolean = false,
     screenCaptureFps: Int = 0,
     latestCapturedFrame: Bitmap? = null,
+    isAiAnalyzingScreen: Boolean = false,
+    latestScreenAnalysis: ScreenAnalysisResult? = null,
+    onAnalyzeLiveScreen: (String) -> Unit = {},
+    onApplyScenario: ((ScenarioEntity, List<ActionStep>) -> Unit)? = null,
     onRequestMediaProjection: () -> Unit = {},
     onStopMediaProjection: () -> Unit = {},
     onLaunchInteractiveSnip: () -> Unit = {},
@@ -399,6 +410,120 @@ fun DetectionStudioScreen(
                                         .background(CyberEmerald.copy(alpha = 0.3f))
                                         .border(2.dp, CyberEmerald, CircleShape)
                                 )
+                            }
+                        }
+
+                        // AI Multimodal Analysis Action
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                if (isScreenCaptureRunning) {
+                                    onAnalyzeLiveScreen("Analyse l'écran et repère les actions clés")
+                                } else {
+                                    onRequestMediaProjection()
+                                }
+                            },
+                            enabled = !isAiAnalyzingScreen,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isScreenCaptureRunning) ElectricViolet else CyberCyan,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp).testTag("btn_vision_ai_screen_analysis")
+                        ) {
+                            if (isAiAnalyzingScreen) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Analyse multimodale Gemini en cours...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isScreenCaptureRunning) "Analyser ce flux avec Vision IA" else "Activer MediaProjection & Analyser",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // AI Analysis Result Card if present
+                        if (latestScreenAnalysis != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = ObsidianBg),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, ElectricViolet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.SmartToy, contentDescription = null, tint = ElectricViolet, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Vision IA : ${latestScreenAnalysis.appOverview}",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = ElectricViolet,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = latestScreenAnalysis.explanation,
+                                        style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                                    )
+
+                                    if (latestScreenAnalysis.detectedElements.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("Éléments repérés :", color = CyberCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            items(latestScreenAnalysis.detectedElements) { elem ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(SlateSurface)
+                                                        .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        "${elem.label} (${elem.x.toInt()}, ${elem.y.toInt()})",
+                                                        fontSize = 10.sp,
+                                                        color = TextPrimary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (onApplyScenario != null) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Button(
+                                            onClick = {
+                                                val scn = ScenarioEntity(
+                                                    title = latestScreenAnalysis.suggestedScenarioTitle,
+                                                    description = latestScreenAnalysis.explanation,
+                                                    stepsJson = com.example.data.JsonUtils.stepsToJson(latestScreenAnalysis.suggestedSteps),
+                                                    isAiControlled = true
+                                                )
+                                                onApplyScenario(scn, latestScreenAnalysis.suggestedSteps)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = CyberEmerald,
+                                                contentColor = SlateSurface
+                                            ),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.fillMaxWidth().height(34.dp).testTag("btn_load_ai_scenario_from_studio")
+                                        ) {
+                                            Text(
+                                                "⚡ Créer Scénario (${latestScreenAnalysis.suggestedSteps.size} étapes déduites)",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
 

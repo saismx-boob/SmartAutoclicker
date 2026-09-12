@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +19,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VideocamOff
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -52,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,6 +88,10 @@ fun AiCopilotScreen(
     chatMessages: List<ChatMessage>,
     memories: List<AiMemoryEntity>,
     isAiGenerating: Boolean,
+    isAiAnalyzingScreen: Boolean = false,
+    isScreenCaptureRunning: Boolean = false,
+    onRequestMediaProjection: () -> Unit = {},
+    onAnalyzeLiveScreen: (String) -> Unit = {},
     onSendGoal: (String) -> Unit,
     onApplyScenario: (ScenarioEntity, List<ActionStep>) -> Unit,
     onClearMemories: () -> Unit
@@ -145,6 +158,103 @@ fun AiCopilotScreen(
                     contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // MediaProjection Vision Status & Quick Capture Header Card
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SlateSurface),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    if (isScreenCaptureRunning) CyberEmerald.copy(alpha = 0.5f) else CyberBorder,
+                                    RoundedCornerShape(14.dp)
+                                )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isScreenCaptureRunning) CyberEmerald else EmergencyCrimson)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isScreenCaptureRunning) "Vision MediaProjection ACTIVE" else "Vision MediaProjection INACTIVE",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = if (isScreenCaptureRunning) CyberEmerald else TextSecondary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+
+                                    if (!isScreenCaptureRunning) {
+                                        TextButton(
+                                            onClick = onRequestMediaProjection,
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Activer flux", color = CyberCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (isScreenCaptureRunning) {
+                                        "L'IA peut capturer et analyser l'écran de n'importe quelle app pour générer automatiquement vos macros."
+                                    } else {
+                                        "Activez MediaProjection pour que l'IA puisse voir l'écran réel de votre appareil et repérer les boutons."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextMuted, fontSize = 11.sp)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (!isScreenCaptureRunning) {
+                                            onRequestMediaProjection()
+                                        } else {
+                                            onAnalyzeLiveScreen(userPromptText)
+                                            userPromptText = ""
+                                        }
+                                    },
+                                    enabled = !isAiAnalyzingScreen && !isAiGenerating,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isScreenCaptureRunning) ElectricViolet else CyberCyan,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().height(36.dp).testTag("btn_analyze_live_screen")
+                                ) {
+                                    if (isAiAnalyzingScreen) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Analyse de l'écran en cours...", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Icon(
+                                            imageVector = if (isScreenCaptureRunning) Icons.Default.CameraAlt else Icons.Default.Videocam,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isScreenCaptureRunning) "📸 Analyser l'écran actuel avec l'IA" else "Activer MediaProjection & Analyser",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Predefined Goal Prompts suggestion chips
                     item {
                         Text(
@@ -157,12 +267,18 @@ fun AiCopilotScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             GoalSuggestionChip(
-                                text = "🛒 Réclamer récompense & confirmer",
+                                text = "🛒 Réclamer & confirmer",
                                 onClick = { userPromptText = "Surveille l'écran et clique sur 'Réclamer', attends 1s puis clique sur 'Confirmer'" }
                             )
                             GoalSuggestionChip(
-                                text = "📜 Parcourir et liker",
-                                onClick = { userPromptText = "Fais défiler la page 10 fois avec des pauses de 2s et tape sur le bouton 'J'aime'" }
+                                text = "📸 Scanner écran actif",
+                                onClick = {
+                                    if (isScreenCaptureRunning) {
+                                        onAnalyzeLiveScreen("Identifie les boutons interactifs et prépare un parcours")
+                                    } else {
+                                        onRequestMediaProjection()
+                                    }
+                                }
                             )
                         }
                     }
@@ -353,6 +469,78 @@ fun ChatMessageItem(
                     text = message.text,
                     style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary)
                 )
+
+                // Captured Frame Image Preview if present
+                if (message.capturedFrameBitmap != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = ObsidianBg),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Image écran capturée (MediaProjection)", color = CyberCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    text = "${message.capturedFrameBitmap.width}x${message.capturedFrameBitmap.height} px",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val imageBmp = remember(message.capturedFrameBitmap) { message.capturedFrameBitmap.asImageBitmap() }
+                            Image(
+                                bitmap = imageBmp,
+                                contentDescription = "Capture écran analysée par l'IA",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+                }
+
+                // Detected Elements breakdown
+                if (message.analysisResult != null && message.analysisResult.detectedElements.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Cibles détectées sur l'écran :", fontSize = 11.sp, color = CyberCyan, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        message.analysisResult.detectedElements.forEach { elem ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(ObsidianBg)
+                                    .border(1.dp, CyberBorder, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${elem.label} (${elem.x.toInt()}, ${elem.y.toInt()})",
+                                    color = TextSecondary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (message.generatedScenario != null && message.generatedSteps != null) {
                     Spacer(modifier = Modifier.height(10.dp))

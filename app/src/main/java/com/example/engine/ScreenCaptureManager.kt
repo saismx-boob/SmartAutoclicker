@@ -57,12 +57,16 @@ object ScreenCaptureManager {
     private val _fps = MutableStateFlow(0)
     val fps: StateFlow<Int> = _fps.asStateFlow()
 
+    private val _frameCount = MutableStateFlow(0L)
+    val frameCount: StateFlow<Long> = _frameCount.asStateFlow()
+
     private val _activeMonitoredRoi = MutableStateFlow<Rect?>(null)
     val activeMonitoredRoi: StateFlow<Rect?> = _activeMonitoredRoi.asStateFlow()
 
     // FPS calculation tracking
     private var frameCounter = 0
     private var lastFpsTimestamp = 0L
+    private var lastPreviewTimestamp = 0L
 
     // Reusable cached frame bitmap to avoid garbage collector pressure
     private var cachedFullBitmap: Bitmap? = null
@@ -177,7 +181,19 @@ object ScreenCaptureManager {
                     cleanBmp
                 }
 
-                _latestFrame.value = finalBitmap
+                _frameCount.value++
+                val nowTime = System.currentTimeMillis()
+                if (nowTime - lastPreviewTimestamp >= 66L) { // ~15 FPS max for UI preview
+                    lastPreviewTimestamp = nowTime
+                    val previewCopy = try {
+                        finalBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (previewCopy != null) {
+                        _latestFrame.value = previewCopy
+                    }
+                }
             }
 
             // Calculate FPS
@@ -201,7 +217,7 @@ object ScreenCaptureManager {
      */
     fun captureCurrentScreen(): Bitmap? {
         synchronized(frameLock) {
-            val live = _latestFrame.value ?: cachedCleanBitmap ?: cachedFullBitmap ?: return null
+            val live = cachedCleanBitmap ?: cachedFullBitmap ?: _latestFrame.value ?: return null
             if (live.isRecycled) return null
             return try {
                 if (live.width == screenWidth && live.height == screenHeight) {
@@ -213,6 +229,33 @@ object ScreenCaptureManager {
                 Log.e(TAG, "Error copying current screen bitmap", e)
                 null
             }
+        }
+    }
+
+    /**
+     * Captures an optimized screen frame scaled for AI analysis (Gemini Multimodal Vision).
+     * Ensures high fidelity while capping max dimension at [maxDimension] (default 1080px)
+     * to keep payload and latency optimal.
+     */
+    fun captureCurrentScreenForAi(maxDimension: Int = 1080): Bitmap? {
+        val fullScreen = captureCurrentScreen() ?: return null
+        val w = fullScreen.width
+        val h = fullScreen.height
+        if (w <= maxDimension && h <= maxDimension) {
+            return fullScreen
+        }
+        val scale = maxDimension.toFloat() / max(w, h).toFloat()
+        val targetW = (w * scale).toInt().coerceAtLeast(1)
+        val targetH = (h * scale).toInt().coerceAtLeast(1)
+        return try {
+            val scaled = Bitmap.createScaledBitmap(fullScreen, targetW, targetH, true)
+            if (scaled != fullScreen) {
+                fullScreen.recycle()
+            }
+            scaled
+        } catch (e: Exception) {
+            Log.e(TAG, "Error scaling bitmap for AI analysis", e)
+            fullScreen
         }
     }
 

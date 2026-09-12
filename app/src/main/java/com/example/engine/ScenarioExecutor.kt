@@ -164,15 +164,92 @@ class ScenarioExecutor(
                     _state.value = _state.value.copy(currentLoop = loopIndex)
                     var lastStepSucceeded = true
 
-                    for ((index, step) in steps.withIndex()) {
-                        if (!step.isEnabled) continue
+                    var stepIndex = 0
+                    var loopTerminatedEarly = false
+
+                    while (stepIndex < steps.size && !loopTerminatedEarly) {
+                        val step = steps[stepIndex]
+                        if (!step.isEnabled) {
+                            stepIndex++
+                            continue
+                        }
 
                         _state.value = _state.value.copy(
-                            currentStepNumber = index + 1,
+                            currentStepNumber = stepIndex + 1,
                             currentStepName = step.name
                         )
 
-                        // 1. Condition check
+                        // If the step is a dedicated Flow Control block (Si / Alors / Sinon)
+                        if (step.actionType == ActionType.BRANCH_IF_ELSE) {
+                            val conditionPassed = ScreenDetectionEngine.evaluateCondition(
+                                step.conditionType,
+                                step.conditionParam,
+                                lastStepSucceeded
+                            )
+
+                            if (conditionPassed) {
+                                repository.log(
+                                    scenarioId = scenario.id,
+                                    scenarioTitle = scenario.title,
+                                    level = "DÉTECTION",
+                                    message = "✅ Condition [${step.conditionType.label}] REMPLIE -> ALORS : ${step.thenActionType.label}"
+                                )
+                                if (step.thenActionType == ActionType.STOP_SCENARIO) {
+                                    loopTerminatedEarly = true
+                                    break
+                                } else if (step.thenActionType == ActionType.JUMP_TO_STEP && step.thenStepJump in 1..steps.size) {
+                                    stepIndex = step.thenStepJump - 1
+                                    continue
+                                } else {
+                                    val thenStep = step.copy(
+                                        actionType = step.thenActionType,
+                                        durationMs = step.thenDurationMs,
+                                        textToType = step.thenTextToType
+                                    )
+                                    lastStepSucceeded = executeSingleStep(scenario, thenStep, isDryRun)
+                                    if (step.thenStepJump in 1..steps.size) {
+                                        stepIndex = step.thenStepJump - 1
+                                        continue
+                                    }
+                                }
+                            } else {
+                                repository.log(
+                                    scenarioId = scenario.id,
+                                    scenarioTitle = scenario.title,
+                                    level = "DÉTECTION",
+                                    message = "❌ Condition [${step.conditionType.label}] NON REMPLIE -> SINON : ${step.elseActionType.label}"
+                                )
+                                if (step.elseActionType == ActionType.STOP_SCENARIO) {
+                                    loopTerminatedEarly = true
+                                    break
+                                } else if (step.elseActionType == ActionType.JUMP_TO_STEP && step.elseStepJump in 1..steps.size) {
+                                    stepIndex = step.elseStepJump - 1
+                                    continue
+                                } else {
+                                    val elseStep = step.copy(
+                                        actionType = step.elseActionType,
+                                        targetX = step.elseTargetX,
+                                        targetY = step.elseTargetY,
+                                        swipeEndX = step.elseSwipeEndX,
+                                        swipeEndY = step.elseSwipeEndY,
+                                        durationMs = step.elseDurationMs,
+                                        delayBeforeMs = step.elseDelayBeforeMs,
+                                        textToType = step.elseTextToType
+                                    )
+                                    lastStepSucceeded = executeSingleStep(scenario, elseStep, isDryRun)
+                                    if (step.elseStepJump in 1..steps.size) {
+                                        stepIndex = step.elseStepJump - 1
+                                        continue
+                                    }
+                                }
+                            }
+
+                            stepIndex++
+                            delay(Humanizer.randomizeDelay(120L, 20))
+                            continue
+                        }
+
+                        // Handling for regular actions with condition
                         val conditionPassed = ScreenDetectionEngine.evaluateCondition(
                             step.conditionType,
                             step.conditionParam,
@@ -180,12 +257,38 @@ class ScenarioExecutor(
                         )
 
                         if (!conditionPassed) {
-                            repository.log(
-                                scenarioId = scenario.id,
-                                scenarioTitle = scenario.title,
-                                level = "INFO",
-                                message = "Étape ${step.stepNumber} ignorée (condition non remplie : ${step.conditionType.label})"
-                            )
+                            if (step.elseActionType != ActionType.WAIT_DELAY || step.elseStepJump > 0) {
+                                repository.log(
+                                    scenarioId = scenario.id,
+                                    scenarioTitle = scenario.title,
+                                    level = "DÉTECTION",
+                                    message = "❌ Condition [${step.conditionType.label}] non remplie -> Branche alternative SINON (${step.elseActionType.label})"
+                                )
+                                if (step.elseActionType == ActionType.STOP_SCENARIO) {
+                                    loopTerminatedEarly = true
+                                    break
+                                }
+                                val elseStep = step.copy(
+                                    actionType = step.elseActionType,
+                                    targetX = step.elseTargetX,
+                                    targetY = step.elseTargetY,
+                                    durationMs = step.elseDurationMs,
+                                    textToType = step.elseTextToType
+                                )
+                                lastStepSucceeded = executeSingleStep(scenario, elseStep, isDryRun)
+                                if (step.elseStepJump in 1..steps.size) {
+                                    stepIndex = step.elseStepJump - 1
+                                    continue
+                                }
+                            } else {
+                                repository.log(
+                                    scenarioId = scenario.id,
+                                    scenarioTitle = scenario.title,
+                                    level = "INFO",
+                                    message = "Étape ${step.stepNumber} ignorée (condition non remplie : ${step.conditionType.label})"
+                                )
+                            }
+                            stepIndex++
                             continue
                         }
 
@@ -195,7 +298,18 @@ class ScenarioExecutor(
                             delay(delayMs)
                         }
 
-                        // 3. Execute step
+                        // 3. Check for direct stop or jump
+                        if (step.actionType == ActionType.STOP_SCENARIO) {
+                            repository.log(scenario.id, scenario.title, "ACTION", "Arrêt programmé du scénario (Étape ${step.stepNumber})")
+                            loopTerminatedEarly = true
+                            break
+                        } else if (step.actionType == ActionType.JUMP_TO_STEP && step.thenStepJump in 1..steps.size) {
+                            repository.log(scenario.id, scenario.title, "ACTION", "Saut vers l'étape ${step.thenStepJump}")
+                            stepIndex = step.thenStepJump - 1
+                            continue
+                        }
+
+                        // 4. Execute step
                         val stepResult = executeSingleStep(scenario, step, isDryRun)
                         lastStepSucceeded = stepResult
                         if (!stepResult) {
@@ -204,6 +318,7 @@ class ScenarioExecutor(
 
                         // Short resting delay between steps
                         delay(Humanizer.randomizeDelay(120L, 20))
+                        stepIndex++
                     }
 
                     // Interval between loops
@@ -364,6 +479,16 @@ class ScenarioExecutor(
             }
             ActionType.WAIT_DELAY -> {
                 delay(step.durationMs)
+                true
+            }
+            ActionType.BRANCH_IF_ELSE -> {
+                // Handled in main loop, fallback just in case
+                true
+            }
+            ActionType.JUMP_TO_STEP -> {
+                true
+            }
+            ActionType.STOP_SCENARIO -> {
                 true
             }
         }

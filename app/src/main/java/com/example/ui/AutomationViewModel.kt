@@ -17,6 +17,7 @@ import com.example.engine.ScenarioExecutor
 import com.example.engine.ScreenDetectionEngine
 import com.example.model.ActionStep
 import com.example.model.ActionType
+import com.example.model.ConditionType
 import com.example.model.AiMemoryEntity
 import com.example.model.DetectionZone
 import com.example.model.ExecutionLogEntity
@@ -39,6 +40,8 @@ data class ChatMessage(
     val isUser: Boolean,
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
+    val capturedFrameBitmap: android.graphics.Bitmap? = null,
+    val analysisResult: com.example.ai.ScreenAnalysisResult? = null,
     val generatedScenario: ScenarioEntity? = null,
     val generatedSteps: List<ActionStep>? = null
 )
@@ -95,6 +98,12 @@ class AutomationViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _isAiGenerating = MutableStateFlow(false)
     val isAiGenerating: StateFlow<Boolean> = _isAiGenerating.asStateFlow()
+
+    private val _isAiAnalyzingScreen = MutableStateFlow(false)
+    val isAiAnalyzingScreen: StateFlow<Boolean> = _isAiAnalyzingScreen.asStateFlow()
+
+    private val _latestScreenAnalysis = MutableStateFlow<com.example.ai.ScreenAnalysisResult?>(null)
+    val latestScreenAnalysis: StateFlow<com.example.ai.ScreenAnalysisResult?> = _latestScreenAnalysis.asStateFlow()
 
     // Live Detection Testing state
     private val _detectionZones = MutableStateFlow(
@@ -203,7 +212,23 @@ class AutomationViewModel(application: Application) : AndroidViewModel(applicati
     fun addStepToEditing(actionType: ActionType = ActionType.CLICK) {
         val current = _editingSteps.value.toMutableList()
         val nextNumber = current.size + 1
-        current.add(
+        val newStep = if (actionType == ActionType.BRANCH_IF_ELSE) {
+            ActionStep(
+                stepNumber = nextNumber,
+                name = "Si Cible Vue ➔ Clic, Sinon ➔ Pause",
+                actionType = ActionType.BRANCH_IF_ELSE,
+                conditionType = ConditionType.IF_IMAGE_PRESENT,
+                conditionParam = "ic_check",
+                targetImageTemplate = "ic_check",
+                targetImageName = "Bouton Valider (✓)",
+                targetType = TargetType.IMAGE_MATCH,
+                thenActionType = ActionType.CLICK,
+                targetX = 540f,
+                targetY = 1200f,
+                elseActionType = ActionType.WAIT_DELAY,
+                elseDurationMs = 500L
+            )
+        } else {
             ActionStep(
                 stepNumber = nextNumber,
                 name = "${actionType.label} #$nextNumber",
@@ -212,7 +237,8 @@ class AutomationViewModel(application: Application) : AndroidViewModel(applicati
                 targetX = 540f,
                 targetY = 1000f + (nextNumber * 40f)
             )
-        )
+        }
+        current.add(newStep)
         _editingSteps.value = current
     }
 
@@ -578,5 +604,104 @@ class AutomationViewModel(application: Application) : AndroidViewModel(applicati
             isActive = true
         )
         _detectionZones.value = listOf(zone) + _detectionZones.value
+    }
+
+    /**
+     * Captures the live screen frame using MediaProjection and analyzes it with Gemini Multimodal AI.
+     * Generates context-aware UI elements and automation steps.
+     */
+    fun analyzeLiveScreenWithAi(userInstruction: String = "", onNeedMediaProjection: (() -> Unit)? = null) {
+        if (_isAiAnalyzingScreen.value) return
+
+        if (!ScreenCaptureManager.isCapturing.value) {
+            onNeedMediaProjection?.invoke()
+            viewModelScope.launch {
+                repository.log(
+                    scenarioId = 0,
+                    scenarioTitle = "VISION IA",
+                    level = "ALERTE",
+                    message = "Demande d'activation MediaProjection nécessaire pour capturer l'écran en direct"
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            _isAiAnalyzingScreen.value = true
+
+            val userMsg = if (userInstruction.isNotBlank()) {
+                "📸 Analyse de l'écran avec la consigne : \"$userInstruction\""
+            } else {
+                "📸 Analyse de l'écran en direct (Vision IA)"
+            }
+            _chatMessages.value = _chatMessages.value + ChatMessage(isUser = true, text = userMsg)
+
+            // Capture frame from MediaProjection or fallback simulation
+            val capturedBmp = if (ScreenCaptureManager.isCapturing.value) {
+                ScreenCaptureManager.captureCurrentScreenForAi(1080)
+            } else {
+                null
+            }
+
+            val finalBmp = capturedBmp ?: ImageRecognitionEngine.createSimulatedScreen(
+                activeTemplateId = "ic_check",
+                templateX = 540f,
+                templateY = 1350f,
+                width = 1080,
+                height = 2400
+            )
+
+            val analysis = geminiService.analyzeScreenFrame(finalBmp, userInstruction)
+            _latestScreenAnalysis.value = analysis
+
+            val scenario = ScenarioEntity(
+                title = analysis.suggestedScenarioTitle,
+                description = "${analysis.appOverview} — ${analysis.explanation}",
+                stepsJson = JsonUtils.stepsToJson(analysis.suggestedSteps),
+                loopCount = 1,
+                isAiControlled = true,
+                aiGoalPrompt = userInstruction.ifBlank { analysis.appOverview },
+                scheduleDescription = "Autonome (Vision)"
+            )
+
+            val aiResponseText = buildString {
+                append("👁️ **Vision IA & Analyse d'écran :**\n\n")
+                append("• **Vue détectée :** ${analysis.appOverview}\n")
+                if (analysis.detectedElements.isNotEmpty()) {
+                    append("• **Éléments interactifs identifiés :** ${analysis.detectedElements.size} cibles (")
+                    append(analysis.detectedElements.take(3).joinToString(", ") { "${it.label} [${it.type}]" })
+                    append(")\n")
+                }
+                append("\n💡 ${analysis.explanation}")
+            }
+
+            _chatMessages.value = _chatMessages.value + ChatMessage(
+                isUser = false,
+                text = aiResponseText,
+                capturedFrameBitmap = finalBmp,
+                analysisResult = analysis,
+                generatedScenario = scenario,
+                generatedSteps = analysis.suggestedSteps
+            )
+
+            repository.addMemory(
+                AiMemoryEntity(
+                    scenarioTitle = "Vision IA",
+                    goal = "Analyse écran : ${analysis.appOverview.take(40)}",
+                    observedState = "${analysis.detectedElements.size} éléments identifiés",
+                    actionDecision = "Génération de ${analysis.suggestedSteps.size} actions adaptées",
+                    outcome = "SUCCESS",
+                    learnedRule = "Éléments détectés avec succès aux coordonnées relatives écran"
+                )
+            )
+
+            repository.log(
+                scenarioId = 0,
+                scenarioTitle = "VISION IA (MediaProjection)",
+                level = "SUCCÈS",
+                message = "Écran analysé : '${analysis.appOverview}', ${analysis.detectedElements.size} éléments identifiés"
+            )
+
+            _isAiAnalyzingScreen.value = false
+        }
     }
 }

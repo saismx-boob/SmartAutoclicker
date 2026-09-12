@@ -29,6 +29,19 @@ object JsonUtils {
             obj.put("delayBeforeMs", step.delayBeforeMs)
             obj.put("conditionType", step.conditionType.name)
             obj.put("conditionParam", step.conditionParam)
+            obj.put("thenActionType", step.thenActionType.name)
+            obj.put("thenStepJump", step.thenStepJump)
+            obj.put("thenDurationMs", step.thenDurationMs)
+            obj.put("thenTextToType", step.thenTextToType)
+            obj.put("elseActionType", step.elseActionType.name)
+            obj.put("elseTargetX", step.elseTargetX.toDouble())
+            obj.put("elseTargetY", step.elseTargetY.toDouble())
+            obj.put("elseSwipeEndX", step.elseSwipeEndX.toDouble())
+            obj.put("elseSwipeEndY", step.elseSwipeEndY.toDouble())
+            obj.put("elseDurationMs", step.elseDurationMs)
+            obj.put("elseDelayBeforeMs", step.elseDelayBeforeMs)
+            obj.put("elseTextToType", step.elseTextToType)
+            obj.put("elseStepJump", step.elseStepJump)
             obj.put("humanizeJitterRadius", step.humanizeJitterRadius)
             obj.put("humanizeTimingVariance", step.humanizeTimingVariance)
             obj.put("isEnabled", step.isEnabled)
@@ -61,6 +74,19 @@ object JsonUtils {
                     delayBeforeMs = obj.optLong("delayBeforeMs", 300L),
                     conditionType = try { ConditionType.valueOf(obj.optString("conditionType", "ALWAYS")) } catch (e: Exception) { ConditionType.ALWAYS },
                     conditionParam = obj.optString("conditionParam", ""),
+                    thenActionType = try { ActionType.valueOf(obj.optString("thenActionType", "CLICK")) } catch (e: Exception) { ActionType.CLICK },
+                    thenStepJump = obj.optInt("thenStepJump", 0),
+                    thenDurationMs = obj.optLong("thenDurationMs", 200L),
+                    thenTextToType = obj.optString("thenTextToType", ""),
+                    elseActionType = try { ActionType.valueOf(obj.optString("elseActionType", "WAIT_DELAY")) } catch (e: Exception) { ActionType.WAIT_DELAY },
+                    elseTargetX = obj.optDouble("elseTargetX", 540.0).toFloat(),
+                    elseTargetY = obj.optDouble("elseTargetY", 1400.0).toFloat(),
+                    elseSwipeEndX = obj.optDouble("elseSwipeEndX", 540.0).toFloat(),
+                    elseSwipeEndY = obj.optDouble("elseSwipeEndY", 600.0).toFloat(),
+                    elseDurationMs = obj.optLong("elseDurationMs", 200L),
+                    elseDelayBeforeMs = obj.optLong("elseDelayBeforeMs", 200L),
+                    elseTextToType = obj.optString("elseTextToType", ""),
+                    elseStepJump = obj.optInt("elseStepJump", 0),
                     humanizeJitterRadius = obj.optInt("humanizeJitterRadius", 14),
                     humanizeTimingVariance = obj.optInt("humanizeTimingVariance", 18),
                     isEnabled = obj.optBoolean("isEnabled", true)

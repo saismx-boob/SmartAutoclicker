@@ -23,17 +23,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -72,6 +79,7 @@ import com.example.ui.theme.CyberEmerald
 import com.example.ui.theme.EmergencyCrimson
 import com.example.ui.theme.GunmetalCard
 import com.example.ui.theme.GunmetalElevated
+import com.example.ui.theme.ObsidianBg
 import com.example.ui.theme.SlateSurface
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -177,6 +185,9 @@ fun VisualStepCard(
                         ActionType.SWIPE -> Icons.Default.Swipe
                         ActionType.WAIT_DELAY -> Icons.Default.HourglassEmpty
                         ActionType.TEXT_INPUT -> Icons.Default.Keyboard
+                        ActionType.BRANCH_IF_ELSE -> Icons.Default.AltRoute
+                        ActionType.JUMP_TO_STEP -> Icons.Default.Redo
+                        ActionType.STOP_SCENARIO -> Icons.Default.StopCircle
                         else -> Icons.Default.TouchApp
                     }
                     val actionColor = when (step.actionType) {
@@ -184,6 +195,9 @@ fun VisualStepCard(
                         ActionType.SWIPE -> CyberEmerald
                         ActionType.WAIT_DELAY -> CyberAmber
                         ActionType.TEXT_INPUT -> Color(0xFFE040FB)
+                        ActionType.BRANCH_IF_ELSE -> Color(0xFFFFB300)
+                        ActionType.JUMP_TO_STEP -> CyberCyan
+                        ActionType.STOP_SCENARIO -> EmergencyCrimson
                         else -> TextPrimary
                     }
 
@@ -299,14 +313,19 @@ fun VisualStepCard(
                     ActionType.CLICK to "🎯 Clic",
                     ActionType.SWIPE to "👆 Glisser",
                     ActionType.WAIT_DELAY to "⏳ Pause",
-                    ActionType.TEXT_INPUT to "⌨️ Texte"
+                    ActionType.TEXT_INPUT to "⌨️ Texte",
+                    ActionType.BRANCH_IF_ELSE to "🔀 Si/Alors/Sinon"
                 ).forEach { (aType, label) ->
                     val isSelected = step.actionType == aType
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (isSelected) CyberCyan.copy(alpha = 0.25f) else Color.Transparent)
+                            .background(
+                                if (isSelected) {
+                                    if (aType == ActionType.BRANCH_IF_ELSE) CyberAmber.copy(alpha = 0.25f) else CyberCyan.copy(alpha = 0.25f)
+                                } else Color.Transparent
+                            )
                             .clickable {
                                 onUpdate(
                                     step.copy(
@@ -316,8 +335,12 @@ fun VisualStepCard(
                                             ActionType.SWIPE -> "Glisser Étape ${index + 1}"
                                             ActionType.WAIT_DELAY -> "Pause ${step.durationMs}ms"
                                             ActionType.TEXT_INPUT -> "Saisie Texte"
+                                            ActionType.BRANCH_IF_ELSE -> "Si Cible Vue ➔ Clic, Sinon ➔ Pause"
                                             else -> step.name
-                                        }
+                                        },
+                                        conditionType = if (aType == ActionType.BRANCH_IF_ELSE && step.conditionType == ConditionType.ALWAYS) {
+                                            ConditionType.IF_IMAGE_PRESENT
+                                        } else step.conditionType
                                     )
                                 )
                             }
@@ -326,47 +349,59 @@ fun VisualStepCard(
                     ) {
                         Text(
                             text = label,
-                            color = if (isSelected) CyberCyan else TextMuted,
-                            fontSize = 11.sp,
+                            color = if (isSelected) {
+                                if (aType == ActionType.BRANCH_IF_ELSE) CyberAmber else CyberCyan
+                            } else TextMuted,
+                            fontSize = 10.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                 }
             }
 
-            // 3. LOGIC CONDITION BLOCK ('If image detected, then perform action')
-            LogicConditionSection(
-                step = step,
-                onUpdate = onUpdate
-            )
+            if (step.actionType == ActionType.BRANCH_IF_ELSE) {
+                // Dedicated full visual flow control block
+                BranchIfElseActionParameters(
+                    step = step,
+                    onUpdate = onUpdate,
+                    totalSteps = totalSteps
+                )
+            } else {
+                // 3. LOGIC CONDITION BLOCK ('If image detected, then perform action')
+                LogicConditionSection(
+                    step = step,
+                    onUpdate = onUpdate,
+                    totalSteps = totalSteps
+                )
 
-            // 4. ACTION PARAMETERS SECTION BASED ON ACTION TYPE
-            when (step.actionType) {
-                ActionType.CLICK -> {
-                    ClickActionParameters(
-                        step = step,
-                        onUpdate = onUpdate
-                    )
+                // 4. ACTION PARAMETERS SECTION BASED ON ACTION TYPE
+                when (step.actionType) {
+                    ActionType.CLICK -> {
+                        ClickActionParameters(
+                            step = step,
+                            onUpdate = onUpdate
+                        )
+                    }
+                    ActionType.SWIPE -> {
+                        SwipeActionParameters(
+                            step = step,
+                            onUpdate = onUpdate
+                        )
+                    }
+                    ActionType.WAIT_DELAY -> {
+                        WaitActionParameters(
+                            step = step,
+                            onUpdate = onUpdate
+                        )
+                    }
+                    ActionType.TEXT_INPUT -> {
+                        TextInputActionParameters(
+                            step = step,
+                            onUpdate = onUpdate
+                        )
+                    }
+                    else -> Unit
                 }
-                ActionType.SWIPE -> {
-                    SwipeActionParameters(
-                        step = step,
-                        onUpdate = onUpdate
-                    )
-                }
-                ActionType.WAIT_DELAY -> {
-                    WaitActionParameters(
-                        step = step,
-                        onUpdate = onUpdate
-                    )
-                }
-                ActionType.TEXT_INPUT -> {
-                    TextInputActionParameters(
-                        step = step,
-                        onUpdate = onUpdate
-                    )
-                }
-                else -> Unit
             }
 
             // 5. TIMING & HUMANIZATION FOOTER
@@ -401,7 +436,8 @@ fun VisualStepCard(
 @Composable
 fun LogicConditionSection(
     step: ActionStep,
-    onUpdate: (ActionStep) -> Unit
+    onUpdate: (ActionStep) -> Unit,
+    totalSteps: Int = 1
 ) {
     val isConditionEnabled = step.conditionType != ConditionType.ALWAYS
     val templates = ImageRecognitionEngine.getAllTemplates()
@@ -624,26 +660,115 @@ fun LogicConditionSection(
                         )
                     }
 
-                    // Logic Execution Flow Preview
+                    // Logic Execution Flow: ALORS (GREEN)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF151821))
+                            .background(Color(0xFF0F261C))
+                            .border(1.dp, CyberEmerald.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                             .padding(8.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "🟢 ALORS : Exécuter l'action [${step.actionType.label}]",
+                                text = "🟢 ALORS : Exécuter l'action principale [${step.actionType.label}]",
                                 color = CyberEmerald,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                text = "🔴 SINON : Ignorer l'étape et passer à la suivante",
-                                color = TextMuted,
-                                fontSize = 11.sp
+                        }
+                    }
+
+                    // Logic Execution Flow: SINON (RED/PINK) - Interactive
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF261016))
+                            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "🔴 SINON [Si condition non remplie] :",
+                            color = Color(0xFFFF80AB),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(SlateSurface)
+                                .padding(2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            listOf(
+                                ActionType.WAIT_DELAY to "⏳ Pause",
+                                ActionType.CLICK to "🎯 Clic repli",
+                                ActionType.SWIPE to "👆 Glisser",
+                                ActionType.STOP_SCENARIO to "⏹️ Arrêter"
+                            ).forEach { (eType, label) ->
+                                val isSel = step.elseActionType == eType
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSel) Color(0xFFFF5252).copy(alpha = 0.25f) else Color.Transparent)
+                                        .clickable { onUpdate(step.copy(elseActionType = eType)) }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSel) Color(0xFFFF80AB) else TextMuted,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+
+                        if (step.elseActionType == ActionType.WAIT_DELAY) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Durée de pause si non trouvé :", color = TextSecondary, fontSize = 10.sp)
+                                Text("${step.elseDurationMs}ms", color = CyberAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Slider(
+                                value = step.elseDurationMs.toFloat(),
+                                onValueChange = { onUpdate(step.copy(elseDurationMs = it.toLong())) },
+                                valueRange = 100f..3000f,
+                                colors = SliderDefaults.colors(thumbColor = CyberAmber, activeTrackColor = CyberAmber)
                             )
+                        } else if (step.elseActionType == ActionType.CLICK) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("X repli: ${step.elseTargetX.toInt()}px", color = TextMuted, fontSize = 10.sp)
+                                    Slider(
+                                        value = step.elseTargetX,
+                                        onValueChange = { onUpdate(step.copy(elseTargetX = it)) },
+                                        valueRange = 0f..1080f,
+                                        colors = SliderDefaults.colors(thumbColor = Color(0xFFFF80AB), activeTrackColor = Color(0xFFFF80AB))
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Y repli: ${step.elseTargetY.toInt()}px", color = TextMuted, fontSize = 10.sp)
+                                    Slider(
+                                        value = step.elseTargetY,
+                                        onValueChange = { onUpdate(step.copy(elseTargetY = it)) },
+                                        valueRange = 0f..2400f,
+                                        colors = SliderDefaults.colors(thumbColor = Color(0xFFFF80AB), activeTrackColor = Color(0xFFFF80AB))
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -892,4 +1017,505 @@ fun TextInputActionParameters(
         modifier = Modifier.fillMaxWidth(),
         singleLine = true
     )
+}
+
+/**
+ * Dedicated visual control block for 'Si [condition], alors [action], sinon [autre action]'
+ */
+@Composable
+fun BranchIfElseActionParameters(
+    step: ActionStep,
+    onUpdate: (ActionStep) -> Unit,
+    totalSteps: Int
+) {
+    val templates = ImageRecognitionEngine.getAllTemplates()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Explanatory Banner for novices
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1824)),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.border(1.dp, CyberAmber.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.AltRoute,
+                    contentDescription = null,
+                    tint = CyberAmber,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "Bloc Décisionnel : Si ➔ Alors ➔ Sinon",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            color = CyberAmber,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    )
+                    Text(
+                        text = "Vérifie l'écran : Si la condition visuelle est validée, exécute l'action ALORS. Sinon, exécute l'action alternative SINON.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = TextSecondary,
+                            fontSize = 10.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 1. SECTION CONDITION (SI)
+        // ==========================================
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SlateSurface),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.border(1.dp, CyberAmber.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(CyberAmber),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("1", color = ObsidianBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SI [Condition Visuelle à l'Écran]",
+                        color = CyberAmber,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Type of visual condition
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(GunmetalCard)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    listOf(
+                        ConditionType.IF_IMAGE_PRESENT to "🖼️ Image Visible",
+                        ConditionType.IF_IMAGE_NOT_PRESENT to "🚫 Image Absente",
+                        ConditionType.IF_TEXT_PRESENT to "🔤 Texte Détecté"
+                    ).forEach { (cType, label) ->
+                        val isSelected = step.conditionType == cType
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isSelected) CyberAmber.copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable {
+                                    onUpdate(
+                                        step.copy(
+                                            conditionType = cType,
+                                            conditionParam = if (cType == ConditionType.IF_TEXT_PRESENT) step.targetText else step.targetImageTemplate
+                                        )
+                                    )
+                                }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) CyberAmber else TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                if (step.conditionType == ConditionType.IF_TEXT_PRESENT) {
+                    OutlinedTextField(
+                        value = step.conditionParam,
+                        onValueChange = { onUpdate(step.copy(conditionParam = it, targetText = it)) },
+                        label = { Text("Texte à rechercher à l'écran") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                } else {
+                    // Image template selector
+                    Text("Cible visuelle à surveiller :", color = TextSecondary, fontSize = 10.sp)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(templates) { template ->
+                            val isSelected = (step.conditionParam == template.id) || (step.targetImageTemplate == template.id)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) CyberAmber.copy(alpha = 0.25f) else GunmetalCard)
+                                    .border(1.dp, if (isSelected) CyberAmber else CyberBorder, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        onUpdate(
+                                            step.copy(
+                                                conditionParam = template.id,
+                                                targetImageTemplate = template.id,
+                                                targetImageName = template.name
+                                            )
+                                        )
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = template.name,
+                                    color = if (isSelected) CyberAmber else TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    // Auto click on image position
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GunmetalCard)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎯 Clic automatique centré sur la cible",
+                            color = TextPrimary,
+                            fontSize = 11.sp
+                        )
+                        Switch(
+                            checked = step.targetType == TargetType.IMAGE_MATCH,
+                            onCheckedChange = { checked ->
+                                onUpdate(step.copy(targetType = if (checked) TargetType.IMAGE_MATCH else TargetType.COORDINATES))
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = CyberCyan,
+                                checkedTrackColor = CyberCyan.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    // Similarity threshold slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Seuil de ressemblance", color = TextMuted, fontSize = 10.sp)
+                        Text("${(step.imageSimilarityThreshold * 100).toInt()}%", color = CyberAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = step.imageSimilarityThreshold,
+                        onValueChange = { onUpdate(step.copy(imageSimilarityThreshold = it)) },
+                        valueRange = 0.50f..0.95f,
+                        colors = SliderDefaults.colors(thumbColor = CyberAmber, activeTrackColor = CyberAmber)
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 2. SECTION ALORS (SI CONDITION VRAIE)
+        // ==========================================
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SlateSurface),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.border(1.dp, CyberEmerald.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(CyberEmerald),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("2", color = ObsidianBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ALORS [Action si VRAI]",
+                        color = CyberEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(GunmetalCard)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    listOf(
+                        ActionType.CLICK to "🎯 Clic",
+                        ActionType.WAIT_DELAY to "⏳ Pause",
+                        ActionType.TEXT_INPUT to "⌨️ Texte",
+                        ActionType.JUMP_TO_STEP to "🔁 Saut"
+                    ).forEach { (aType, label) ->
+                        val isSelected = step.thenActionType == aType
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isSelected) CyberEmerald.copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable { onUpdate(step.copy(thenActionType = aType)) }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) CyberEmerald else TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                when (step.thenActionType) {
+                    ActionType.CLICK -> {
+                        if (step.targetType != TargetType.IMAGE_MATCH) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Position X: ${step.targetX.toInt()} px", color = TextMuted, fontSize = 10.sp)
+                                    Slider(
+                                        value = step.targetX,
+                                        onValueChange = { onUpdate(step.copy(targetX = it)) },
+                                        valueRange = 0f..1080f,
+                                        colors = SliderDefaults.colors(thumbColor = CyberEmerald, activeTrackColor = CyberEmerald)
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Position Y: ${step.targetY.toInt()} px", color = TextMuted, fontSize = 10.sp)
+                                    Slider(
+                                        value = step.targetY,
+                                        onValueChange = { onUpdate(step.copy(targetY = it)) },
+                                        valueRange = 0f..2400f,
+                                        colors = SliderDefaults.colors(thumbColor = CyberEmerald, activeTrackColor = CyberEmerald)
+                                    )
+                                }
+                            }
+                        } else {
+                            Text("Le clic sera automatiquement centré sur la cible détectée.", color = CyberEmerald, fontSize = 10.sp)
+                        }
+                    }
+                    ActionType.WAIT_DELAY -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Durée de pause :", color = TextMuted, fontSize = 10.sp)
+                            Text("${step.thenDurationMs}ms", color = CyberEmerald, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = step.thenDurationMs.toFloat(),
+                            onValueChange = { onUpdate(step.copy(thenDurationMs = it.toLong())) },
+                            valueRange = 100f..5000f,
+                            colors = SliderDefaults.colors(thumbColor = CyberEmerald, activeTrackColor = CyberEmerald)
+                        )
+                    }
+                    ActionType.TEXT_INPUT -> {
+                        OutlinedTextField(
+                            value = step.thenTextToType,
+                            onValueChange = { onUpdate(step.copy(thenTextToType = it)) },
+                            label = { Text("Texte à taper") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    ActionType.JUMP_TO_STEP -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Sauter directement à l'étape :", color = TextPrimary, fontSize = 11.sp)
+                            Text("#${step.thenStepJump.coerceAtLeast(1)}", color = CyberEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = step.thenStepJump.coerceIn(1, totalSteps.coerceAtLeast(1)).toFloat(),
+                            onValueChange = { onUpdate(step.copy(thenStepJump = it.toInt())) },
+                            valueRange = 1f..totalSteps.coerceAtLeast(1).toFloat(),
+                            steps = (totalSteps - 2).coerceAtLeast(0),
+                            colors = SliderDefaults.colors(thumbColor = CyberEmerald, activeTrackColor = CyberEmerald)
+                        )
+                    }
+                    else -> Unit
+                }
+            }
+        }
+
+        // ==========================================
+        // 3. SECTION SINON (SI CONDITION FAUSSE)
+        // ==========================================
+        Card(
+            colors = CardDefaults.cardColors(containerColor = SlateSurface),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.border(1.dp, Color(0xFFFF5252).copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("3", color = ObsidianBg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SINON [Autre action si FAUX]",
+                        color = Color(0xFFFF80AB),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(GunmetalCard)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    listOf(
+                        ActionType.WAIT_DELAY to "⏳ Pause",
+                        ActionType.CLICK to "🎯 Clic repli",
+                        ActionType.SWIPE to "👆 Glisser",
+                        ActionType.JUMP_TO_STEP to "🔁 Saut",
+                        ActionType.STOP_SCENARIO to "⏹️ Arrêt"
+                    ).forEach { (aType, label) ->
+                        val isSelected = step.elseActionType == aType
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isSelected) Color(0xFFFF5252).copy(alpha = 0.25f) else Color.Transparent)
+                                .clickable { onUpdate(step.copy(elseActionType = aType)) }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color(0xFFFF80AB) else TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                when (step.elseActionType) {
+                    ActionType.CLICK -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("X repli: ${step.elseTargetX.toInt()} px", color = TextMuted, fontSize = 10.sp)
+                                Slider(
+                                    value = step.elseTargetX,
+                                    onValueChange = { onUpdate(step.copy(elseTargetX = it)) },
+                                    valueRange = 0f..1080f,
+                                    colors = SliderDefaults.colors(thumbColor = Color(0xFFFF5252), activeTrackColor = Color(0xFFFF5252))
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Y repli: ${step.elseTargetY.toInt()} px", color = TextMuted, fontSize = 10.sp)
+                                Slider(
+                                    value = step.elseTargetY,
+                                    onValueChange = { onUpdate(step.copy(elseTargetY = it)) },
+                                    valueRange = 0f..2400f,
+                                    colors = SliderDefaults.colors(thumbColor = Color(0xFFFF5252), activeTrackColor = Color(0xFFFF5252))
+                                )
+                            }
+                        }
+                    }
+                    ActionType.WAIT_DELAY -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Durée d'attente / pause :", color = TextMuted, fontSize = 10.sp)
+                            Text("${step.elseDurationMs}ms", color = Color(0xFFFF80AB), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = step.elseDurationMs.toFloat(),
+                            onValueChange = { onUpdate(step.copy(elseDurationMs = it.toLong())) },
+                            valueRange = 100f..5000f,
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFFFF5252), activeTrackColor = Color(0xFFFF5252))
+                        )
+                    }
+                    ActionType.SWIPE -> {
+                        Text(
+                            text = "Glisser l'écran pour chercher la cible plus bas (défilement automatique).",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    ActionType.JUMP_TO_STEP -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Sauter directement à l'étape :", color = TextPrimary, fontSize = 11.sp)
+                            Text("#${step.elseStepJump.coerceAtLeast(1)}", color = Color(0xFFFF80AB), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = step.elseStepJump.coerceIn(1, totalSteps.coerceAtLeast(1)).toFloat(),
+                            onValueChange = { onUpdate(step.copy(elseStepJump = it.toInt())) },
+                            valueRange = 1f..totalSteps.coerceAtLeast(1).toFloat(),
+                            steps = (totalSteps - 2).coerceAtLeast(0),
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFFFF5252), activeTrackColor = Color(0xFFFF5252))
+                        )
+                    }
+                    ActionType.STOP_SCENARIO -> {
+                        Text(
+                            text = "⏹️ Arrêt automatique immédiat du scénario si la condition n'est pas remplie.",
+                            color = EmergencyCrimson,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
 }

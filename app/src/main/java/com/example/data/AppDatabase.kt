@@ -186,6 +186,46 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 )
 
+                // Scenario 4: Bloc Décisionnel Si/Alors/Sinon
+                val steps4 = listOf(
+                    ActionStep(
+                        stepNumber = 1,
+                        name = "Si Bouton 'Valider' visible ➔ Clic, Sinon ➔ Glisser",
+                        actionType = ActionType.BRANCH_IF_ELSE,
+                        conditionType = ConditionType.IF_IMAGE_PRESENT,
+                        conditionParam = "ic_check",
+                        targetImageTemplate = "ic_check",
+                        targetImageName = "Bouton Valider (✓)",
+                        targetType = TargetType.IMAGE_MATCH,
+                        thenActionType = ActionType.CLICK,
+                        targetX = 540f,
+                        targetY = 1200f,
+                        thenDurationMs = 300L,
+                        elseActionType = ActionType.SWIPE,
+                        elseDurationMs = 500L,
+                        elseTargetX = 540f,
+                        elseTargetY = 1600f
+                    ),
+                    ActionStep(
+                        stepNumber = 2,
+                        name = "Pause de stabilisation",
+                        actionType = ActionType.WAIT_DELAY,
+                        durationMs = 1000L
+                    )
+                )
+                scenarioDao.insertScenario(
+                    ScenarioEntity(
+                        title = "🔀 Décision Intelligente (Si / Alors / Sinon)",
+                        description = "Vérifie si le bouton Valider apparaît à l'écran : si oui il clique dessus, sinon il fait défiler l'écran pour le chercher.",
+                        stepsJson = JsonUtils.stepsToJson(steps4),
+                        loopCount = 3,
+                        intervalBetweenLoopsMs = 1000L,
+                        scheduleDescription = "3 cycles",
+                        totalExecutions = 12,
+                        successExecutions = 12
+                    )
+                )
+
                 // Seed some logs
                 logDao.insertLog(
                     ExecutionLogEntity(

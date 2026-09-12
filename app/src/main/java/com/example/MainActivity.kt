@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
 
                 val chatMessages by viewModel.chatMessages.collectAsState()
                 val isAiGenerating by viewModel.isAiGenerating.collectAsState()
+                val isAiAnalyzingScreen by viewModel.isAiAnalyzingScreen.collectAsState()
+                val latestScreenAnalysis by viewModel.latestScreenAnalysis.collectAsState()
 
                 val detectionZones by viewModel.detectionZones.collectAsState()
                 val liveDetectionResult by viewModel.liveDetectionResult.collectAsState()
@@ -128,6 +130,10 @@ class MainActivity : ComponentActivity() {
                                 onStartRecording = {
                                     viewModel.startGestureRecording()
                                     viewModel.setNavIndex(1)
+                                },
+                                onSelectScenarioForEdit = { sc ->
+                                    viewModel.selectScenarioForEdit(sc)
+                                    viewModel.setNavIndex(1)
                                 }
                             )
 
@@ -182,6 +188,23 @@ class MainActivity : ComponentActivity() {
                                 isScreenCaptureRunning = isScreenCaptureRunning,
                                 screenCaptureFps = screenCaptureFps,
                                 latestCapturedFrame = latestCapturedFrame,
+                                isAiAnalyzingScreen = isAiAnalyzingScreen,
+                                latestScreenAnalysis = latestScreenAnalysis,
+                                onAnalyzeLiveScreen = { prompt ->
+                                    viewModel.analyzeLiveScreenWithAi(
+                                        userInstruction = prompt,
+                                        onNeedMediaProjection = {
+                                            try {
+                                                mediaProjectionManager?.createScreenCaptureIntent()?.let { intent ->
+                                                    mediaProjectionLauncher.launch(intent)
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    )
+                                },
+                                onApplyScenario = { sc, steps -> viewModel.applyAiGeneratedScenario(sc, steps) },
                                 onRequestMediaProjection = {
                                     try {
                                         mediaProjectionManager?.createScreenCaptureIntent()?.let { intent ->
@@ -204,6 +227,31 @@ class MainActivity : ComponentActivity() {
                                 chatMessages = chatMessages,
                                 memories = memories,
                                 isAiGenerating = isAiGenerating,
+                                isAiAnalyzingScreen = isAiAnalyzingScreen,
+                                isScreenCaptureRunning = isScreenCaptureRunning,
+                                onRequestMediaProjection = {
+                                    try {
+                                        mediaProjectionManager?.createScreenCaptureIntent()?.let { intent ->
+                                            mediaProjectionLauncher.launch(intent)
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                },
+                                onAnalyzeLiveScreen = { prompt ->
+                                    viewModel.analyzeLiveScreenWithAi(
+                                        userInstruction = prompt,
+                                        onNeedMediaProjection = {
+                                            try {
+                                                mediaProjectionManager?.createScreenCaptureIntent()?.let { intent ->
+                                                    mediaProjectionLauncher.launch(intent)
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    )
+                                },
                                 onSendGoal = { viewModel.sendUserGoalToAi(it) },
                                 onApplyScenario = { sc, steps -> viewModel.applyAiGeneratedScenario(sc, steps) },
                                 onClearMemories = { viewModel.clearMemories() }

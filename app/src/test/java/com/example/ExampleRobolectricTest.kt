@@ -93,4 +93,31 @@ class ExampleRobolectricTest {
     assertEquals(450f, decoded[0].targetX)
     assertEquals(890f, decoded[0].targetY)
   }
+
+  @Test
+  fun test_branch_if_else_serialization() {
+    val branchStep = ActionStep(
+      stepNumber = 1,
+      name = "Test Si/Alors/Sinon",
+      actionType = ActionType.BRANCH_IF_ELSE,
+      conditionType = ConditionType.IF_IMAGE_PRESENT,
+      conditionParam = "ic_check",
+      thenActionType = ActionType.CLICK,
+      thenStepJump = 3,
+      elseActionType = ActionType.SWIPE,
+      elseStepJump = 5,
+      elseDurationMs = 450L
+    )
+
+    val json = JsonUtils.stepsToJson(listOf(branchStep))
+    val decoded = JsonUtils.jsonToSteps(json)
+    assertEquals(1, decoded.size)
+    assertEquals(ActionType.BRANCH_IF_ELSE, decoded[0].actionType)
+    assertEquals(ConditionType.IF_IMAGE_PRESENT, decoded[0].conditionType)
+    assertEquals(ActionType.CLICK, decoded[0].thenActionType)
+    assertEquals(3, decoded[0].thenStepJump)
+    assertEquals(ActionType.SWIPE, decoded[0].elseActionType)
+    assertEquals(5, decoded[0].elseStepJump)
+    assertEquals(450L, decoded[0].elseDurationMs)
+  }
 }

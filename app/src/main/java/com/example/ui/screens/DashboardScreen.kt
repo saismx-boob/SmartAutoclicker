@@ -34,6 +34,11 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +51,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.ActiveExecutionState
 import com.example.engine.EngineStatus
+import com.example.data.JsonUtils
+import com.example.model.ActionStep
 import com.example.model.ScenarioEntity
 import com.example.ui.theme.CyberAmber
 import com.example.ui.theme.CyberBorder
@@ -85,11 +96,13 @@ fun DashboardScreen(
     onToggleOverlay: () -> Unit = onOpenOverlaySettings,
     onNavigateToBuilder: () -> Unit,
     onNavigateToAi: () -> Unit,
-    onStartRecording: () -> Unit
+    onStartRecording: () -> Unit,
+    onSelectScenarioForEdit: (ScenarioEntity) -> Unit = {}
 ) {
     val totalExecutions = scenarios.sumOf { it.totalExecutions }
     val totalSuccess = scenarios.sumOf { it.successExecutions }
     val successRate = if (totalExecutions > 0) (totalSuccess * 100) / totalExecutions else 98
+    var isNoviceGuideExpanded by remember { mutableStateOf(true) }
 
     LazyColumn(
         modifier = Modifier
@@ -99,6 +112,223 @@ fun DashboardScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 0. Guide Démarrage Facile pour Novices (3 étapes simples)
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF141926)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isNoviceGuideExpanded = !isNoviceGuideExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberCyan.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.School,
+                                    contentDescription = null,
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Guide Débutant : 3 Étapes Simples",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        color = CyberCyan,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = "Comment automatiser vos actions en 1 minute",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { isNoviceGuideExpanded = !isNoviceGuideExpanded },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                if (isNoviceGuideExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = TextMuted
+                            )
+                        }
+                    }
+
+                    if (isNoviceGuideExpanded) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Étape 1 : Accessibilité
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isAccessibilityActive) Color(0xFF0F261C) else Color(0xFF261214))
+                                .border(
+                                    1.dp,
+                                    if (isAccessibilityActive) CyberEmerald.copy(alpha = 0.4f) else EmergencyCrimson.copy(alpha = 0.4f),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isAccessibilityActive) CyberEmerald else EmergencyCrimson),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("1", color = ObsidianBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isAccessibilityActive) "Service d'accessibilité prêt" else "1. Activer le service Android",
+                                    color = if (isAccessibilityActive) CyberEmerald else Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isAccessibilityActive) "Autorisation accordée pour cliquer sans root" else "Indispensable pour effectuer les clics à l'écran",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            if (!isAccessibilityActive) {
+                                Button(
+                                    onClick = onOpenAccessibility,
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmergencyCrimson),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text("Activer", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = CyberEmerald, modifier = Modifier.size(20.dp))
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Étape 2 : Choisir ou Créer
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SlateSurface)
+                                .border(1.dp, CyberBorder, RoundedCornerShape(10.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberCyan),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("2", color = ObsidianBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "2. Choisir ou créer un scénario",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Sélectionnez un modèle prêt ci-dessous ou cliquez sur Créer",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = onNavigateToBuilder,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = CyberCyan),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Text("+ Créer", fontSize = 11.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Étape 3 : Bouton Flottant / Lancer
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isOverlayActive) Color(0xFF0C2433) else SlateSurface)
+                                .border(
+                                    1.dp,
+                                    if (isOverlayActive) CyberCyan.copy(alpha = 0.5f) else CyberBorder,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(CyberAmber),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("3", color = ObsidianBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "3. Bouton Flottant (Par-dessus vos apps)",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isOverlayActive) "Bouton actif ! Ouvrez n'importe quel jeu ou app" else "Lancez le bouton pour démarrer vos macros par-dessus vos apps",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            Button(
+                                onClick = onToggleOverlay,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isOverlayActive) EmergencyCrimson else CyberCyan,
+                                    contentColor = if (isOverlayActive) Color.White else SlateSurface
+                                ),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Text(if (isOverlayActive) "Masquer" else "Lancer", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // 1. Accessibility Service Warning Banner (if inactive)
         if (!isAccessibilityActive) {
             item {
@@ -444,7 +674,8 @@ fun DashboardScreen(
                 scenario = scenario,
                 isDryRun = isDryRun,
                 onRun = { onRunScenario(scenario, false) },
-                onDryRun = { onRunScenario(scenario, true) }
+                onDryRun = { onRunScenario(scenario, true) },
+                onEdit = { onSelectScenarioForEdit(scenario) }
             )
         }
     }
@@ -489,14 +720,20 @@ fun ScenarioCard(
     scenario: ScenarioEntity,
     isDryRun: Boolean,
     onRun: () -> Unit,
-    onDryRun: () -> Unit
+    onDryRun: () -> Unit,
+    onEdit: () -> Unit = {}
 ) {
+    val steps: List<ActionStep> = remember(scenario.stepsJson) {
+        JsonUtils.jsonToSteps(scenario.stepsJson)
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = SlateSurface),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, CyberBorder, RoundedCornerShape(14.dp))
+            .clickable { onEdit() }
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -540,6 +777,46 @@ fun ScenarioCard(
                 }
             }
 
+            // Steps overview badge for novices
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF1B2230))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${steps.size} étape${if (steps.size > 1) "s" else ""}",
+                        color = CyberCyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // If scenario has flow control/branching, show a badge
+                val hasBranch = steps.any { it.actionType == com.example.model.ActionType.BRANCH_IF_ELSE }
+                if (hasBranch) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(CyberAmber.copy(alpha = 0.18f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "🔀 Décision Si/Alors",
+                            color = CyberAmber,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -555,7 +832,19 @@ fun ScenarioCard(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Edit button
+                    OutlinedButton(
+                        onClick = onEdit,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(34.dp).testTag("edit_scenario_btn_${scenario.id}")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = "Modifier", modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Modifier", fontSize = 11.sp)
+                    }
+
                     // Test à blanc button
                     OutlinedButton(
                         onClick = onDryRun,

@@ -12,7 +12,10 @@ enum class ActionType(val label: String, val iconName: String) {
     SCROLL_DOWN("Défiler Bas", "arrow_downward"),
     TEXT_INPUT("Écrire Texte", "keyboard"),
     PINCH_ZOOM("Zoom Pincement", "pinch"),
-    WAIT_DELAY("Pause / Attente", "hourglass_empty")
+    WAIT_DELAY("Pause / Attente", "hourglass_empty"),
+    BRANCH_IF_ELSE("Si / Alors / Sinon (Branche)", "alt_route"),
+    JUMP_TO_STEP("Sauter à l'Étape", "redo"),
+    STOP_SCENARIO("Arrêter le Scénario", "stop_circle")
 }
 
 enum class TargetType(val label: String) {
@@ -54,6 +57,19 @@ data class ActionStep(
     val delayBeforeMs: Long = 300L,
     val conditionType: ConditionType = ConditionType.ALWAYS,
     val conditionParam: String = "",
+    val thenActionType: ActionType = ActionType.CLICK,
+    val thenStepJump: Int = 0,
+    val thenDurationMs: Long = 200L,
+    val thenTextToType: String = "",
+    val elseActionType: ActionType = ActionType.WAIT_DELAY,
+    val elseTargetX: Float = 540f,
+    val elseTargetY: Float = 1400f,
+    val elseSwipeEndX: Float = 540f,
+    val elseSwipeEndY: Float = 600f,
+    val elseDurationMs: Long = 200L,
+    val elseDelayBeforeMs: Long = 200L,
+    val elseTextToType: String = "",
+    val elseStepJump: Int = 0,
     val humanizeJitterRadius: Int = 14,
     val humanizeTimingVariance: Int = 18,
     val isEnabled: Boolean = true
